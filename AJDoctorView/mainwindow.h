@@ -2,6 +2,9 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QMessageBox>
+#include <QDebug>
+#include<QFileDialog>
 #include "udpthread.h"
 #include <QTimer>
 #include<opencv2/opencv.hpp>
@@ -35,9 +38,15 @@ public:
     QImage Mat2QImage(const Mat& mat); //Mat-->QImage
     QImage QPixmap2QImage(QPixmap pix); //QPixmap-->QImage
     QPixmap QImage2QPixmap(QImage img); //QImage-->QPixmap
+
+    void RGB2HSV(double red, double green, double blue, double& hue, double& saturation, double& intensity);
+    Mat DetectRedTarget(Mat input);              //提取红色目标
+    vector<Point2f> GetTargetCoordinate(Mat in); //获取红色目标坐标
 private slots:
     void slotRecv(char *buf, int len);
     void slotTimeout();  //超时处理函数
+    void on_pushButton_clicked();
+
 private:
     Ui::MainWindow *ui;
     UdpThread *m_udpThread;

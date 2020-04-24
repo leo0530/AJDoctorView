@@ -15,13 +15,13 @@ MainWindow::MainWindow(QWidget *parent) :
     //初始化定时器
     timer = new QTimer(this);
     connect(timer, SIGNAL(timeout()), this, SLOT(slotTimeout()));
- //   timer->start(1000);//定时器周期是1秒
+//    timer->start(1000);//定时器周期是1秒
 
 }
 
 MainWindow::~MainWindow()
 {
-    m_udpThread->terminate();
+    m_udpThread->exit();//退出udp接收线程
 
     if(timer)
     {
@@ -46,7 +46,6 @@ void MainWindow::slotRecv(char * buf, int len)
     img = Mat2QImage(dst);
     ui->label->setPixmap(QImage2QPixmap(img));
 
- //   imshow("dst",dst);
 }
 
 void MainWindow::slotTimeout()  //超时处理函数
@@ -100,7 +99,7 @@ Mat MainWindow::DetectTarget(Mat img)//处理收到的图片，提取目标，�
         for (size_t i = 0; i < contours.size(); i++)
         {
             double area = contourArea(contours[static_cast<size_t>(i)]);//计算面积
-            if (area > 50)
+            if (area > 500)
             {
                 maxArea = area;
                 rect = boundingRect(contours[static_cast<size_t>(i)]);//得到包覆此轮廓的最小正矩形
@@ -117,12 +116,14 @@ Mat MainWindow::DetectTarget(Mat img)//处理收到的图片，提取目标，�
     }
     //矩形框
     //rectangle(img,rect, Scalar(0,255,0),2);
-    //圆形框
-    circle(img, Point(static_cast<int>(center.x),static_cast<int>(center.y)), static_cast<int>(radius), Scalar(0, 255, 0), 2);
+//    //圆形框
+//    circle(img, Point(static_cast<int>(center.x),static_cast<int>(center.y)), static_cast<int>(radius), Scalar(0, 255, 0), 2);
 
     for(size_t j = 0;j < vecTarget.size();j++)
     {
         cout << vecTarget[j].area <<"," << vecTarget[j].rect <<"," << vecTarget[j].center <<"," << vecTarget[j].index << endl;
+        //    //圆形框
+        circle(img, Point(static_cast<int>(center.x),static_cast<int>(center.y)), static_cast<int>(radius), Scalar(0, 255, 0), 2);
     }
 
     return img;
@@ -205,4 +206,159 @@ QImage MainWindow::Mat2QImage(const Mat& mat) //Mat-->QImage
         qDebug() << "ERROR: Mat could not be converted to QImage.";
         return QImage();
     }
+}
+
+//颜色转换：RGB-->HSV
+void MainWindow::RGB2HSV(double red, double green, double blue, double& hue, double& saturation, double& intensity)
+{
+
+#define PI 3.1415926
+
+    double r, g, b;
+    double h, s, i;
+
+    double sum;
+    double minRGB, maxRGB;
+    double theta;
+
+    r = red / 255.0;
+    g = green / 255.0;
+    b = blue / 255.0;
+
+    minRGB = ((r<g) ? (r) : (g));
+    minRGB = (minRGB<b) ? (minRGB) : (b);
+
+    maxRGB = ((r>g) ? (r) : (g));
+    maxRGB = (maxRGB>b) ? (maxRGB) : (b);
+
+    sum = r + g + b;
+    i = sum / 3.0;
+
+    if (i<0.001 || maxRGB - minRGB<0.001)
+    {
+        h = 0.0;
+        s = 0.0;
+    }
+    else
+    {
+        s = 1.0 - 3.0*minRGB / sum;
+        theta = sqrt((r - g)*(r - g) + (r - b)*(g - b));
+        theta = acos((r - g + r - b)*0.5 / theta);
+        if (b <= g)
+            h = theta;
+        else
+            h = 2 * PI - theta;
+        if (s <= 0.01)
+            h = 0;
+    }
+
+    hue = (int)(h * 180 / PI);
+    saturation = (int)(s * 100);
+    intensity = (int)(i * 100);
+}
+//找出图像中红色的物体
+Mat MainWindow::DetectRedTarget(Mat input)
+{
+
+    Mat frame;
+    Mat srcImg = input;
+    frame = srcImg;
+  //  waitKey(1);
+    int width = srcImg.cols;
+    int height = srcImg.rows;
+
+    int x, y;
+    double B = 0.0, G = 0.0, R = 0.0, H = 0.0, S = 0.0, V = 0.0;
+    Mat vec_rgb = Mat::zeros(srcImg.size(), CV_8UC1);
+    for (x = 0; x < height; x++)
+    {
+        for (y = 0; y < width; y++)
+        {
+            B = srcImg.at<Vec3b>(x, y)[0];
+            G = srcImg.at<Vec3b>(x, y)[1];
+            R = srcImg.at<Vec3b>(x, y)[2];
+            RGB2HSV(R, G, B, H, S, V);
+            //红色范围，范围参考的网上。可以自己调
+            if ((H >= 312 && H <= 360) && (S >= 17 && S <= 100) && (V>18 && V < 100))
+                vec_rgb.at<uchar>(x, y) = 255;
+            /*cout << H << "," << S << "," << V << endl;*/
+        }
+    }
+
+    return vec_rgb;
+}
+
+vector<Point2f> MainWindow::GetTargetCoordinate(Mat in) //获取红色目标坐标
+{
+    Mat matSrc = in;
+
+    GaussianBlur(matSrc, matSrc, Size(5, 5), 0);//高斯滤波，除噪点
+
+    vector<vector<Point> > contours;//contours的类型，双重的vector
+
+    vector<Vec4i> hierarchy;//Vec4i是指每一个vector元素中有四个int型数据。
+
+    //阈值
+    threshold(matSrc, matSrc, 100, 255, THRESH_BINARY);//图像二值化
+
+    //寻找轮廓，这里注意，findContours的输入参数要求是二值图像，二值图像的来源大致有两种，第一种用threshold，第二种用canny
+    findContours(matSrc.clone(), contours, hierarchy, CV_RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, Point(0, 0));
+
+    if(contours.size() == 0)
+    {
+        return vector<Point2f>();
+    }
+    // 计算矩
+    vector<Moments> mu(contours.size());
+
+    for (size_t i = 0; i < contours.size(); i++)
+    {
+        mu[i] = moments(contours[i], false);
+    }
+
+    ///  计算矩中心:
+
+    vector<Point2f> mc(contours.size());
+
+    for (size_t i = 0; i < contours.size(); i++)
+    {
+        mc[i] = Point2f(mu[i].m10 / mu[i].m00, mu[i].m01 / mu[i].m00);
+    }
+
+    return mc;
+
+    /// 绘制轮廓
+//    Mat drawing = Mat::zeros(matSrc.size(), CV_8UC1);
+//    for (size_t i = 0; i < contours.size(); i++)
+//    {
+//        Scalar color = Scalar(255);
+//        //drawContours(drawing, contours, i, color, 2, 8, hierarchy, 0, Point());//绘制轮廓函数
+//        circle(drawing, mc[i], 4, color, -1, 8, 0);
+//    }
+//    *x1 = mc[0].x;
+//    *y1 = mc[0].y;
+//    *x2 = mc[contours.size() - 1].x;
+//    *y2 = mc[contours.size() - 1].y;
+
+ //   imshow("outImage", drawing);
+
+}
+
+void MainWindow::on_pushButton_clicked()
+{
+    Mat src = imread("d:\\1.JPG");
+
+    Mat middle = DetectRedTarget(src);
+
+    vector<Point2f> temp = GetTargetCoordinate(middle);
+
+    for (size_t i = 0; i < temp.size(); i++)
+    {
+        cout << temp[i] << endl;
+        circle(src, Point(static_cast<int>(temp[i].x),static_cast<int>(temp[i].y)), static_cast<int>(20), Scalar(0, 255, 0), 2);
+    }
+
+    QPixmap pixmap;
+    pixmap = QImage2QPixmap(Mat2QImage(src));
+    ui->label->setPixmap(pixmap);
 }
