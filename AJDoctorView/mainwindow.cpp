@@ -12,16 +12,40 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(m_udpThread, SIGNAL(sigRecvOk(char*,int)), this, SLOT(slotRecv(char*,int)));
     m_udpThread->start();
 
+    m_udpSocket = new QUdpSocket(this);  //创建对象
+    m_udpSocket->bind(QHostAddress::LocalHost, 7788); //绑定端口
+    //当UDP收到消息后，会发送readyRead信号，
+    //连接成功有 connected，断开连接有，disconnected信号。
+    connect(m_udpSocket, SIGNAL(readyRead()),this, SLOT(readPendingDatagrams()));
+
     //初始化定时器
+    timer = NULL;
     timer = new QTimer(this);
     connect(timer, SIGNAL(timeout()), this, SLOT(slotTimeout()));
-//    timer->start(1000);//定时器周期是1秒
+ //   timer->start(1000);//定时器周期是1秒
 
+    initTableView();//初始化列表控件
+
+    //治疗方案相关控件设为不可见
+    ui->label_no->setVisible(false);
+    ui->label_cute->setVisible(false);
+    ui->label_cutetime->setVisible(false);
+    ui->comboBox_no->setVisible(false);
+    ui->comboBox_cure->setVisible(false);
+    ui->lineEdit->setVisible(false);
+
+    ui->comboBox_cure->addItem("点按");
+    ui->comboBox_cure->addItem("画圆");
+    ui->comboBox_cure->addItem("雀琢");
 }
 
 MainWindow::~MainWindow()
 {
     m_udpThread->exit();//退出udp接收线程
+
+    //释放资源
+    if(model)
+        delete model;
 
     if(timer)
     {
@@ -29,14 +53,75 @@ MainWindow::~MainWindow()
             timer->stop();
         delete  timer;
     }
+
+    if(m_udpSocket)
+        delete m_udpSocket;
+
     delete ui;
+}
+
+void MainWindow::readPendingDatagrams()
+  {
+      while (m_udpSocket->hasPendingDatagrams()) {
+      //从缓冲区中读取数据，
+          QNetworkDatagram datagram = m_udpSocket->receiveDatagram();
+
+      }
+  }
+
+
+void MainWindow::initTableView()
+{
+    model = new QStandardItemModel();
+
+    model->setColumnCount(4);
+    model->setHeaderData(0,Qt::Horizontal,QString("顺序"));
+    model->setHeaderData(1,Qt::Horizontal,QString("坐标"));
+    model->setHeaderData(2,Qt::Horizontal,QString("疗法"));
+    model->setHeaderData(3,Qt::Horizontal,QString("时间"));
+    ui->tableView->setModel(model);
+    //表头信息显示居左
+    ui->tableView->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
+    ui->tableView->horizontalHeader()->setSectionResizeMode(0,QHeaderView::Fixed);  //设定表头列宽不可变
+    ui->tableView->horizontalHeader()->setSectionResizeMode(1,QHeaderView::Fixed);  //设定表头列宽不可变
+    ui->tableView->horizontalHeader()->setSectionResizeMode(2,QHeaderView::Fixed);  //设定表头列宽不可变
+    ui->tableView->horizontalHeader()->setSectionResizeMode(3,QHeaderView::Fixed);  //设定表头列宽不可变
+   //
+    ui->tableView->setColumnWidth(0,70);
+    ui->tableView->setColumnWidth(1,70);
+    ui->tableView->setColumnWidth(2,70);
+    ui->tableView->setColumnWidth(3,70);
+
+ //   ui->tableView->verticalHeader()->hide();//隐藏行号
+    //整行选择
+    ui->tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    connect(ui->tableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(slotRowDoubleClicked(const QModelIndex &)));
+}
+
+void MainWindow::slotRowDoubleClicked(const QModelIndex index)
+{
+    //通过Model获取一行
+
+    m_ModelIndex = ui->tableView->currentIndex();
+
+    if(m_ModelIndex.isValid())
+    {
+        //治疗方案相关控件设为不可见
+        ui->label_no->setVisible(true);
+        ui->label_cute->setVisible(true);
+        ui->label_cutetime->setVisible(true);
+        ui->comboBox_no->setVisible(true);
+        ui->comboBox_cure->setVisible(true);
+        ui->lineEdit->setVisible(true);
+    }
+
 }
 
 void MainWindow::slotRecv(char * buf, int len)
 {
     QPixmap pixmap;
     pixmap.loadFromData((uchar*)buf, (uint)len, "JPG");
- //   ui->label->setPixmap(pixmap);
+
     //QPixmap转成Mat，then调用目标提取函数
     QImage img = QPixmap2QImage(pixmap);
     Mat dst = QImage2cvMat(img);
@@ -252,9 +337,9 @@ void MainWindow::RGB2HSV(double red, double green, double blue, double& hue, dou
             h = 0;
     }
 
-    hue = (int)(h * 180 / PI);
-    saturation = (int)(s * 100);
-    intensity = (int)(i * 100);
+    hue = static_cast<int>(h * 180 / PI);
+    saturation = static_cast<int>(s * 100);
+    intensity  = static_cast<int>(i * 100);
 }
 //找出图像中红色的物体
 Mat MainWindow::DetectRedTarget(Mat input)
@@ -346,6 +431,8 @@ vector<Point2f> MainWindow::GetTargetCoordinate(Mat in) //获取红色目标坐�
 
 void MainWindow::on_pushButton_clicked()
 {
+
+
     Mat src = imread("d:\\1.JPG");
 
     Mat middle = DetectRedTarget(src);
@@ -361,4 +448,97 @@ void MainWindow::on_pushButton_clicked()
     QPixmap pixmap;
     pixmap = QImage2QPixmap(Mat2QImage(src));
     ui->label->setPixmap(pixmap);
+
+    ui->comboBox_no->clear();
+    for (size_t i = 0; i < temp.size(); i++)
+    {
+        //顺序、坐标、疗法、时间
+        int count = model->rowCount();
+        model->setItem(count,0,new QStandardItem(QString::number(i+1)));
+        QString strPos;
+    //    strPos.append("(");
+        strPos.append(QString::number(temp[i].x,'f',2));
+        strPos.append(",");
+        strPos.append(QString::number(temp[i].y,'f',2));
+     //   strPos.append(")");
+        model->setItem(count,1,new QStandardItem(strPos));
+        model->setItem(count,2,new QStandardItem(QString("")));
+
+        ui->comboBox_no->addItem(QString::number(i+1));
+    }
+
+    //治疗方案相关控件设为不可见
+    ui->label_no->setVisible(true);
+    ui->label_cute->setVisible(true);
+    ui->label_cutetime->setVisible(true);
+    ui->comboBox_no->setVisible(true);
+    ui->comboBox_cure->setVisible(true);
+    ui->lineEdit->setVisible(true);
+
+}
+
+void MainWindow::on_addButton_clicked()
+{
+
+}
+
+void MainWindow::on_deleteItemButton_clicked()
+{
+    //x是指定删除哪一行
+
+  //  model->removeRow(x);
+
+    //删除所有行
+
+    model->removeRows(0,model->rowCount());
+}
+
+void MainWindow::on_confirmButton_clicked()
+{
+    QString index = ui->comboBox_no->currentText();  //治疗顺序
+    QString cute  = ui->comboBox_cure->currentText();//疗法
+    QString time  = ui->lineEdit->text();            //治疗时间
+
+    QModelIndex index_No   = model->index(m_ModelIndex.row(), 0);//选中行第1列的内容
+    QModelIndex index_Cute = model->index(m_ModelIndex.row(), 2);//选中行第3列的内容
+    QModelIndex index_Time = model->index(m_ModelIndex.row(), 3);//选中行第4列的内容
+
+    model->setData(index_No, QVariant::fromValue(index));
+    model->setData(index_Cute, QVariant::fromValue(cute));
+    model->setData(index_Time, QVariant::fromValue(time));
+
+}
+
+void MainWindow::on_sendButton_clicked()
+{
+    MsgPackage *sendData = new MsgPackage();
+
+    for(int i=0;i<model->rowCount();i++)
+    {
+        QModelIndex index = model->index(i,0);
+        QModelIndex pos = model->index(i,1);
+        QModelIndex cute = model->index(i,2);
+        QModelIndex time = model->index(i,2);
+
+        QString point = model->data(pos).toString();
+        QStringList list = point.split(",");
+        QString x = list[0]; //a = "hello"
+        QString y = list[1]; //b = "world"
+
+        Cute_Solution solution;
+        solution.no = model->data(index).toInt();//治疗顺序
+        solution.cute = model->data(cute).toString();//治疗手法
+        solution.time = model->data(time).toInt();//治疗时间
+        solution.center.x = x.toFloat();//x坐标
+        solution.center.y = y.toFloat();//y坐标
+        sendData->msg.push_back(solution);
+    }
+
+    QByteArray str;
+    int length = sendData->msg.size()*sizeof(Cute_Solution);
+    str.append((char*)sendData, length);
+
+    m_udpSocket->writeDatagram(str, QHostAddress::Broadcast, 8888);
+
+    delete sendData;
 }
