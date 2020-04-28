@@ -32,11 +32,13 @@ CONFIG += c++11
 SOURCES += \
         main.cpp \
         mainwindow.cpp \
-    udpthread.cpp
+    udpthread.cpp \
+    itemdelegate.cpp
 
 HEADERS += \
         mainwindow.h \
-    udpthread.h
+    udpthread.h \
+    itemdelegate.h
 
 FORMS += \
         mainwindow.ui

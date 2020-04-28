@@ -11,6 +11,7 @@
 #include <QtNetwork>
 #include <QHeaderView>
 #include "udpthread.h"
+#include "itemdelegate.h"
 #include<opencv2/opencv.hpp>
 #include <iostream>
 #include <vector>
@@ -71,8 +72,6 @@ private slots:
     void on_addButton_clicked();
 
     void on_deleteItemButton_clicked();
-
-    void on_confirmButton_clicked();
 
     void on_sendButton_clicked();
 
