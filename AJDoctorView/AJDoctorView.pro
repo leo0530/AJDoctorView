@@ -33,12 +33,14 @@ SOURCES += \
         main.cpp \
         mainwindow.cpp \
     udpthread.cpp \
-    itemdelegate.cpp
+    itemdelegate.cpp \
+    global.cpp
 
 HEADERS += \
         mainwindow.h \
     udpthread.h \
-    itemdelegate.h
+    itemdelegate.h \
+    global.h
 
 FORMS += \
         mainwindow.ui
