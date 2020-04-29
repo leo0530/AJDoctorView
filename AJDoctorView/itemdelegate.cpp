@@ -1,15 +1,5 @@
 ﻿#include "itemdelegate.h"
-#include <QComboBox>
-#include <QDoubleSpinBox>
-#include <QDateEdit>
-#include <QTimeEdit>
-#include <QLineEdit>
-#include <QDoubleValidator>
-#include <QMouseEvent>
-#include <QPainter>
-#include <QStyleOption>
-#include <QApplication>
-#include <QDebug>
+
 
 ComboDelegate::ComboDelegate(QObject *parent) : QItemDelegate(parent)
 {

@@ -18,6 +18,11 @@
 using namespace cv;
 using namespace std;
 
+const int DIAN_AN  = 1;
+const int HUA_YUAN = 2;
+const int QUE_ZUO  = 3;
+
+#pragma pack(1)  //指定一字节对齐
 struct Target  //提取目标结构体
 {
     Point2f center;//矩形中心点坐标
@@ -30,15 +35,20 @@ struct Target  //提取目标结构体
 struct Cute_Solution
 {
     int no;        //治疗顺序
-    Point2f center;//穴位中心坐标
-    QString cute;  //治疗方案：点按、画圆、雀琢
+    float x;      //中心点x坐标
+    float y;      //中心点y坐标
+    int cute;  //治疗方案：1:点按、2:画圆、3:雀琢
     int time;      //治疗时间，单位分钟
+    Cute_Solution()
+    {
+        no = 0;
+        x = 0.0;
+        y = 0.0;
+        cute = DIAN_AN;
+        time = 0;
+    }
 };
-//udp数据包结构体
-struct MsgPackage
-{
-    vector<Cute_Solution> msg;//
-};
+#pragma pack()  //取消指定对齐，恢复缺省对齐
 
 namespace Ui {
 class MainWindow;

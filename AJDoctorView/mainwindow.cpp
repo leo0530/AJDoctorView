@@ -13,7 +13,7 @@ MainWindow::MainWindow(QWidget *parent) :
     m_udpThread->start();
 
     m_udpSocket = new QUdpSocket(this);  //创建对象
- //   m_udpSocket->bind(QHostAddress::LocalHost, 7788); //绑定端口
+   cout << m_udpSocket->bind(QHostAddress::LocalHost, 9999); //绑定端口
     //当UDP收到消息后，会发送readyRead信号，
     //连接成功有 connected，断开连接有，disconnected信号。
 //    connect(m_udpSocket, SIGNAL(readyRead()),this, SLOT(readPendingDatagrams()));
@@ -86,31 +86,16 @@ void MainWindow::initTableView()
     ui->tableView->setItemDelegateForColumn(1, itemReadOnly);//设置第2列
     ui->tableView->setItemDelegateForColumn(2, itemComboDelegate);//设置第3列
 
- //   ui->tableView->verticalHeader()->hide();//隐藏行号
+    ui->tableView->verticalHeader()->hide();//隐藏行号
     //整行选择
   //  ui->tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     connect(ui->tableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(slotRowDoubleClicked(const QModelIndex &)));
-
-
 }
 
 void MainWindow::slotRowDoubleClicked(const QModelIndex index)
 {
     //通过Model获取一行
-
     m_ModelIndex = ui->tableView->currentIndex();
-
-    if(m_ModelIndex.isValid())
-    {
-//        //治疗方案相关控件设为不可见
-//        ui->label_no->setVisible(true);
-//        ui->label_cute->setVisible(true);
-//        ui->label_cutetime->setVisible(true);
-//        ui->comboBox_no->setVisible(true);
-//        ui->comboBox_cure->setVisible(true);
-//        ui->lineEdit->setVisible(true);
-    }
-
 }
 
 void MainWindow::slotRecv(char * buf, int len)
@@ -451,11 +436,9 @@ void MainWindow::on_pushButton_clicked()
         int count = model->rowCount();
         model->setItem(count,0,new QStandardItem(QString::number(i+1)));
         QString strPos;
-    //    strPos.append("(");
-        strPos.append(QString::number(temp[i].x,'f',2));
+        strPos.append(QString::number(temp[i].x,'f',2));//x坐标
         strPos.append(",");
-        strPos.append(QString::number(temp[i].y,'f',2));
-     //   strPos.append(")");
+        strPos.append(QString::number(temp[i].y,'f',2));//y坐标
         model->setItem(count,1,new QStandardItem(strPos));
         model->setItem(count,2,new QStandardItem(QString("")));
     }
@@ -480,14 +463,13 @@ void MainWindow::on_deleteItemButton_clicked()
 
 void MainWindow::on_sendButton_clicked()
 {
-    MsgPackage *sendData = new MsgPackage();
-
+    QByteArray byteArray;//QByteArray用于将自定义的结构体转化为字节流，用于网络传输
     for(int i=0;i<model->rowCount();i++)
     {
         QModelIndex index = model->index(i,0);
         QModelIndex pos = model->index(i,1);
         QModelIndex cute = model->index(i,2);
-        QModelIndex time = model->index(i,2);
+        QModelIndex time = model->index(i,3);
 
         QString point = model->data(pos).toString();
         QStringList list = point.split(",");
@@ -496,19 +478,29 @@ void MainWindow::on_sendButton_clicked()
 
         Cute_Solution solution;
         solution.no   = model->data(index).toInt();  //治疗顺序
-        solution.cute = model->data(cute).toString();//治疗手法
+        //QString转换String
+        //string s = qstr.toStdString();
+        if(model->data(cute).toString() == "点按")
+        {
+            solution.cute = DIAN_AN;
+        }
+        else  if(model->data(cute).toString() == "画圆")
+        {
+            solution.cute = HUA_YUAN;
+        }
+        else  if(model->data(cute).toString() == "雀琢")
+        {
+            solution.cute = QUE_ZUO;
+        }
+
         solution.time = model->data(time).toInt();   //治疗时间
-        solution.center.x = x.toFloat();//x坐标
-        solution.center.y = y.toFloat();//y坐标
-        sendData->msg.push_back(solution);
-    }
+        solution.x = x.toFloat();//x坐标
+        solution.y = y.toFloat();//y坐标
 
-//    QByteArray str;
-    int length = sendData->msg.size()*sizeof(Cute_Solution);
-//    str.append((char*)sendData, length);
+        byteArray.append((char*)&solution, sizeof(solution));
+   }
 
-   qint64 size = m_udpSocket->writeDatagram((char*)sendData, length, QHostAddress::Broadcast, 65520);
+    qint64 size =  m_udpSocket->writeDatagram(byteArray, QHostAddress::Broadcast, 65520);
+    qDebug()<<QString::number(size)<<","<<QString::number(byteArray.size())<<endl;
 
-   qDebug()<<QString::number(size);
-    delete sendData;
 }

@@ -3,8 +3,18 @@
 
 #include <QObject>
 #include <QItemDelegate>
-#include <QComboBox>
 #include <QStyledItemDelegate>
+#include <QComboBox>
+#include <QDoubleSpinBox>
+#include <QDateEdit>
+#include <QTimeEdit>
+#include <QLineEdit>
+#include <QDoubleValidator>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QStyleOption>
+#include <QApplication>
+#include <QDebug>
 
 class ComboDelegate : public QItemDelegate
 {
